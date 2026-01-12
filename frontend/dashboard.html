@@ -8,7 +8,19 @@
 
   <input id="title" placeholder="Task title">
   <input id="desc" placeholder="Description">
-  <button onclick="createTask()">Add Task</button>
+  <input id="due" type="date">
+  <select id="priority">
+    <option value="1">Low</option>
+    <option value="2">Medium</option>
+    <option value="3">High</option>
+  </select>
+  <button onclick="createTask()">Add</button>
+
+  <br><br>
+  <button onclick="loadTasks()">All</button>
+  <button onclick="loadTasks('todo')">Todo</button>
+  <button onclick="loadTasks('done')">Done</button>
+  <button onclick="loadTasks(null, 'priority')">Sort by Priority</button>
 
   <ul id="taskList"></ul>
 

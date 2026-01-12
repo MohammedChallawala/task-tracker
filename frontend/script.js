@@ -35,11 +35,12 @@ async function login(){
     saveToken(data.access_token);
 }
 
-// LOAD TASKS
-async function loadTasks(){
+async function loadTasks(status=null, sort="due"){
     const token = localStorage.getItem("token");
+    let url = API + "/tasks?sort=" + sort;
+    if(status) url += "&status=" + status;
 
-    const res = await fetch(API + "/tasks", {
+    const res = await fetch(url, {
         headers:{ "Authorization":"Bearer " + token }
     });
 
@@ -48,13 +49,15 @@ async function loadTasks(){
 
     tasks.forEach(t => {
         const li = document.createElement("li");
-        li.innerHTML = `${t.title} - ${t.status}
-            <button onclick="deleteTask('${t._id}')">❌</button>`;
+        li.innerHTML = `
+            <b>${t.title}</b> (${t.status}) - Priority ${t.priority}
+            <button onclick="toggle('${t._id}')">Toggle</button>
+            <button onclick="deleteTask('${t._id}')">❌</button>
+        `;
         taskList.appendChild(li);
     });
 }
 
-// CREATE TASK
 async function createTask(){
     const token = localStorage.getItem("token");
 
@@ -66,10 +69,21 @@ async function createTask(){
         },
         body: JSON.stringify({
             title: title.value,
-            description: desc.value
+            description: desc.value,
+            due_date: due.value,
+            priority: priority.value
         })
     });
 
+    loadTasks();
+}
+
+async function toggle(id){
+    const token = localStorage.getItem("token");
+    await fetch(API + "/tasks/" + id + "/toggle", {
+        method:"PATCH",
+        headers:{ "Authorization":"Bearer " + token }
+    });
     loadTasks();
 }
 

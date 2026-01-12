@@ -28,10 +28,22 @@ def create_task(task: TaskCreate, user_id=Depends(get_current_user)):
     return {"message": "Task created"}
 
 @router.get("/")
-def get_tasks(user_id=Depends(get_current_user)):
-    tasks = list(tasks_collection.find({"user_id": user_id}))
+def get_tasks(
+    user_id=Depends(get_current_user),
+    status: str = None,
+    sort: str = "due"
+):
+    query = {"user_id": user_id}
+    if status:
+        query["status"] = status
+
+    sort_field = "due_date" if sort == "due" else "priority"
+
+    tasks = list(tasks_collection.find(query).sort(sort_field, 1))
+
     for t in tasks:
         t["_id"] = str(t["_id"])
+
     return tasks
 
 @router.put("/{task_id}")
@@ -54,3 +66,18 @@ def delete_task(task_id: str, user_id=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Task not found")
 
     return {"message": "Task deleted"}
+
+@router.patch("/{task_id}/toggle")
+def toggle_status(task_id: str, user_id=Depends(get_current_user)):
+    task = tasks_collection.find_one({"_id": ObjectId(task_id), "user_id": user_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    new_status = "done" if task["status"] != "done" else "todo"
+
+    tasks_collection.update_one(
+        {"_id": ObjectId(task_id)},
+        {"$set": {"status": new_status}}
+    )
+
+    return {"status": new_status}
