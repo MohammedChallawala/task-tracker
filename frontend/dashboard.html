@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <link rel="stylesheet" href="style.css">
   <title>My Tasks</title>
 </head>
 <body>
@@ -23,6 +24,9 @@
   <button onclick="loadTasks(null, 'priority')">Sort by Priority</button>
 
   <ul id="taskList"></ul>
+  <button onclick="getSuggestion()">What should I do now?</button>
+  <p id="ai"></p>
+
 
   <script src="script.js"></script>
 </body>

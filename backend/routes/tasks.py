@@ -27,6 +27,7 @@ def create_task(task: TaskCreate, user_id=Depends(get_current_user)):
 
     return {"message": "Task created"}
 
+
 @router.get("/")
 def get_tasks(
     user_id=Depends(get_current_user),
@@ -40,9 +41,17 @@ def get_tasks(
     sort_field = "due_date" if sort == "due" else "priority"
 
     tasks = list(tasks_collection.find(query).sort(sort_field, 1))
+    now = datetime.utcnow()
 
     for t in tasks:
         t["_id"] = str(t["_id"])
+        if t.get("due_date") and t["status"] != "done":
+            if t["due_date"] < now.date():
+                t["overdue"] = True
+            else:
+                t["overdue"] = False
+        else:
+            t["overdue"] = False
 
     return tasks
 
@@ -81,3 +90,28 @@ def toggle_status(task_id: str, user_id=Depends(get_current_user)):
     )
 
     return {"status": new_status}
+
+@router.get("/suggest")
+def suggest_task(user_id=Depends(get_current_user)):
+    tasks = list(tasks_collection.find({
+        "user_id": user_id,
+        "status": {"$ne": "done"}
+    }))
+
+    if not tasks:
+        return {"suggestion": "Nothing to do. Go touch grass."}
+
+    # Priority logic
+    def score(t):
+        s = t.get("priority",1) * 10
+        if t.get("due_date"):
+            days = (t["due_date"] - datetime.utcnow().date()).days
+            s += max(0, 20 - days)
+        return s
+
+    best = max(tasks, key=score)
+
+    return {
+        "suggestion": f"Work on: {best['title']}",
+        "task_id": str(best["_id"])
+    }

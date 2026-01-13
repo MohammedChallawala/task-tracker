@@ -49,12 +49,15 @@ async function loadTasks(status=null, sort="due"){
 
     tasks.forEach(t => {
         const li = document.createElement("li");
+        if(t.overdue) li.classList.add("overdue");
+
         li.innerHTML = `
-            <b>${t.title}</b> (${t.status}) - Priority ${t.priority}
+            <b>${t.title}</b> (${t.status})
+            ${t.overdue ? "🔥 OVERDUE" : ""}
             <button onclick="toggle('${t._id}')">Toggle</button>
             <button onclick="deleteTask('${t._id}')">❌</button>
         `;
-        taskList.appendChild(li);
+    taskList.appendChild(li);
     });
 }
 
@@ -102,4 +105,13 @@ async function deleteTask(id){
 // Auto-load on dashboard
 if (window.location.pathname.includes("dashboard")){
     loadTasks();
+}
+
+async function getSuggestion(){
+    const token = localStorage.getItem("token");
+    const res = await fetch(API + "/tasks/suggest", {
+        headers:{ "Authorization":"Bearer " + token }
+    });
+    const data = await res.json();
+    ai.innerText = data.suggestion;
 }
