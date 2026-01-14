@@ -46,7 +46,7 @@ def get_tasks(
     for t in tasks:
         t["_id"] = str(t["_id"])
         if t.get("due_date") and t["status"] != "done":
-            if t["due_date"] < now.date():
+            if t["due_date"] < now:
                 t["overdue"] = True
             else:
                 t["overdue"] = False

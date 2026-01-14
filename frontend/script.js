@@ -35,31 +35,66 @@ async function login(){
     saveToken(data.access_token);
 }
 
-async function loadTasks(status=null, sort="due"){
+let allTasks = [];
+
+async function loadTasks(status = null, sort = "due") {
     const token = localStorage.getItem("token");
     let url = API + "/tasks?sort=" + sort;
-    if(status) url += "&status=" + status;
+    if (status) url += "&status=" + status;
 
     const res = await fetch(url, {
-        headers:{ "Authorization":"Bearer " + token }
+        headers: { "Authorization": "Bearer " + token }
     });
 
-    const tasks = await res.json();
+    allTasks = await res.json();
+    renderTasks();
+}
+
+function renderTasks() {
     taskList.innerHTML = "";
 
-    tasks.forEach(t => {
+    const now = new Date();
+
+    allTasks.forEach(t => {
         const li = document.createElement("li");
-        if(t.overdue) li.classList.add("overdue");
+        if (t.overdue) li.classList.add("overdue");
+
+        // ⏳ time-left logic (merged here)
+        let timeLeft = "No deadline";
+        if (t.due_date) {
+            const diff = new Date(t.due_date) - now;
+
+            if (diff <= 0) {
+                timeLeft = "OVERDUE";
+            } else {
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(minutes / 60);
+                const days = Math.floor(hours / 24);
+
+                if (days > 0) timeLeft = `${days}d ${hours % 24}h`;
+                else if (hours > 0) timeLeft = `${hours}h ${minutes % 60}m`;
+                else timeLeft = `${minutes}m`;
+            }
+        }
 
         li.innerHTML = `
             <b>${t.title}</b> (${t.status})
-            ${t.overdue ? "🔥 OVERDUE" : ""}
+            <br>${timeLeft}
+            ${t.overdue ? "<b>OVERDUE</b>" : ""}
+            <br>
             <button onclick="toggle('${t._id}')">Toggle</button>
-            <button onclick="deleteTask('${t._id}')">❌</button>
+            <button onclick="deleteTask('${t._id}')">Delete</button>
         `;
-    taskList.appendChild(li);
+
+        taskList.appendChild(li);
     });
 }
+
+// auto-refresh countdown every minute
+setInterval(() => {
+    if (allTasks.length) renderTasks();
+}, 60000);
+
 
 async function createTask(){
     const token = localStorage.getItem("token");
