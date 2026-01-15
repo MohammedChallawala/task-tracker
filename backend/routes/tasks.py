@@ -7,6 +7,23 @@ from datetime import datetime, time
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
+def urgency_score(t):
+    score = t.get("priority", 1) * 10
+
+    if t.get("due_date"):
+        due_date = t["due_date"]
+
+        # Convert datetime → date if needed
+        if isinstance(due_date, datetime):
+            due_date = due_date.date()
+
+        today = datetime.utcnow().date()
+        days = (due_date - today).days
+
+        score += max(0, 20 - days)
+
+    return score
+
 @router.post("/")
 def create_task(task: TaskCreate, user_id=Depends(get_current_user)):
     due_date = (
@@ -27,31 +44,38 @@ def create_task(task: TaskCreate, user_id=Depends(get_current_user)):
 
     return {"message": "Task created"}
 
-
 @router.get("/")
 def get_tasks(
     user_id=Depends(get_current_user),
     status: str = None,
-    sort: str = "due"
+    sort: str = "due"  # kept for compatibility
 ):
     query = {"user_id": user_id}
     if status:
         query["status"] = status
 
-    sort_field = "due_date" if sort == "due" else "priority"
-
-    tasks = list(tasks_collection.find(query).sort(sort_field, 1))
-    now = datetime.utcnow()
+    tasks = list(tasks_collection.find(query))
+    now = datetime.utcnow().date()
 
     for t in tasks:
         t["_id"] = str(t["_id"])
-        if t.get("due_date") and t["status"] != "done":
-            if t["due_date"] < now:
-                t["overdue"] = True
-            else:
-                t["overdue"] = False
+
+        # Normalize due_date to date (IMPORTANT)
+        due_date = t.get("due_date")
+        if isinstance(due_date, datetime):
+            due_date = due_date.date()
+
+        # Compute urgency (uses normalized date internally)
+        t["urgency"] = urgency_score(t)
+
+        # Determine overdue status
+        if due_date and t["status"] != "done":
+            t["overdue"] = due_date < now
         else:
             t["overdue"] = False
+
+    # Sort by urgency (highest first)
+    tasks.sort(key=lambda x: x["urgency"], reverse=True)
 
     return tasks
 
@@ -101,12 +125,17 @@ def suggest_task(user_id=Depends(get_current_user)):
     if not tasks:
         return {"suggestion": "Nothing to do. Go touch grass."}
 
-    # Priority logic
     def score(t):
-        s = t.get("priority",1) * 10
-        if t.get("due_date"):
-            days = (t["due_date"] - datetime.utcnow().date()).days
+        s = t.get("priority", 1) * 10
+
+        due_date = t.get("due_date")
+        if isinstance(due_date, datetime):
+            due_date = due_date.date()
+
+        if due_date:
+            days = (due_date - datetime.utcnow().date()).days
             s += max(0, 20 - days)
+
         return s
 
     best = max(tasks, key=score)
@@ -115,3 +144,4 @@ def suggest_task(user_id=Depends(get_current_user)):
         "suggestion": f"Work on: {best['title']}",
         "task_id": str(best["_id"])
     }
+
