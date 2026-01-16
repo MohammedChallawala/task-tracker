@@ -24,6 +24,18 @@
   <button onclick="loadTasks(null, 'priority')">Sort by Priority</button>
   <button onclick="focus()">Focus Mode</button>
   <div id="focusBox"></div>
+  <div id="editBox" style="display:none;">
+    <h3>Edit Task</h3>
+    <input id="eTitle">
+    <input id="eDesc">
+    <input id="eDue" type="date">
+    <select id="ePriority">
+      <option value="1">Low</option>
+      <option value="2">Medium</option>
+      <option value="3">High</option>
+    </select>
+    <button onclick="saveEdit()">Save</button>
+  </div>
 
   <ul id="taskList"></ul>
   <button onclick="getSuggestion()">What should I do now?</button>

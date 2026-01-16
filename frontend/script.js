@@ -70,8 +70,13 @@ function getTimeLeft(dueDate) {
 function renderTasks() {
     taskList.innerHTML = "";
 
-    allTasks.forEach(t => {
+    allTasks.forEach((t, index) => {
         const li = document.createElement("li");
+
+        // Drag & drop setup
+        li.draggable = true;
+        li.dataset.index = index;
+
         if (t.overdue) li.classList.add("overdue");
 
         const timeLeftText = getTimeLeft(t.due_date);
@@ -79,18 +84,48 @@ function renderTasks() {
             ? new Date(t.due_date).toDateString()
             : "No deadline";
 
+        // Priority text
+        let pText = "Low";
+        if (t.priority == 2) pText = "Medium";
+        if (t.priority == 3) pText = "High";
+
         li.innerHTML = `
             <b>${t.title}</b> (${t.status})
-            <br>Time left: <b>${timeLeftText}</b>
-            <br>Due: ${due}
-            ${t.overdue ? "<br><b>🔥 OVERDUE</b>" : ""}
+            <br>${timeLeftText}
+            <br>${due}
+            <br>${pText}
+            ${t.overdue ? "<br><b>OVERDUE</b>" : ""}
             <br>
             <button onclick="toggle('${t._id}')">Toggle</button>
+            <button onclick="editTask(${index})">Edit</button>
             <button onclick="deleteTask('${t._id}')">Delete</button>
         `;
 
+        // Drag & drop handlers
+        li.addEventListener("dragstart", dragStart);
+        li.addEventListener("dragover", dragOver);
+        li.addEventListener("drop", drop);
+
         taskList.appendChild(li);
     });
+}
+
+let draggedIndex = null;
+
+function dragStart(e){
+    draggedIndex = e.target.dataset.index;
+}
+
+function dragOver(e){
+    e.preventDefault();
+}
+
+function drop(e){
+    const targetIndex = e.target.closest("li").dataset.index;
+    const temp = allTasks[draggedIndex];
+    allTasks.splice(draggedIndex,1);
+    allTasks.splice(targetIndex,0,temp);
+    renderTasks();
 }
 
 // auto-refresh countdown every minute
@@ -167,7 +202,7 @@ function focus(){
         <h3>FOCUS</h3>
         <b>${best.title}</b>
         <p>${best.description}</p>
-        <p>⏳ ${getTimeLeft(best.due_date)}</p>
+        <p>${getTimeLeft(best.due_date)}</p>
         <button onclick="toggle('${best._id}')">Mark Done</button>
     `;
 }
@@ -183,13 +218,13 @@ setInterval(() => {
 
     let message = "";
     if(urgent.overdue) {
-        message = `🔥 You missed "${urgent.title}". Fix it.`;
+        message = `You missed "${urgent.title}". Fix it.`;
     }
     else if(time.includes("m")) {
-        message = `⚠️ "${urgent.title}" is due in ${time}`;
+        message = `"${urgent.title}" is due in ${time}`;
     }
     else if(urgent.priority >= 3) {
-        message = `👀 High priority: ${urgent.title}`;
+        message = `High priority: ${urgent.title}`;
     }
 
     if(message && message !== lastReminder){
@@ -197,3 +232,38 @@ setInterval(() => {
         lastReminder = message;
     }
 }, 60000);
+
+let editingTask = null;
+
+function editTask(index){
+    const t = allTasks[index];
+    editingTask = t;
+
+    eTitle.value = t.title;
+    eDesc.value = t.description || "";
+    eDue.value = t.due_date || "";
+    ePriority.value = t.priority;
+
+    editBox.style.display = "block";
+}
+
+async function saveEdit(){
+    const token = localStorage.getItem("token");
+
+    await fetch(API + "/tasks/" + editingTask._id, {
+        method:"PUT",
+        headers:{
+            "Content-Type":"application/json",
+            "Authorization":"Bearer " + token
+        },
+        body: JSON.stringify({
+            title: eTitle.value,
+            description: eDesc.value,
+            due_date: eDue.value,
+            priority: ePriority.value
+        })
+    });
+
+    editBox.style.display = "none";
+    loadTasks();
+}
