@@ -7,23 +7,25 @@ from datetime import datetime, time
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
-def urgency_score(t):
-    score = t.get("priority", 1) * 10
 
-    if t.get("due_date"):
-        due_date = t["due_date"]
+# -------------------------
+# Urgency scoring
+# -------------------------
+def urgency_score(task):
+    score = task.get("priority", 1) * 10
+    due_date = task.get("due_date")
 
-        # Convert datetime → date if needed
-        if isinstance(due_date, datetime):
-            due_date = due_date.date()
-
-        today = datetime.utcnow().date()
-        days = (due_date - today).days
-
-        score += max(0, 20 - days)
+    if due_date:
+        now = datetime.utcnow()
+        days_left = (due_date - now).days
+        score += max(0, 20 - days_left)
 
     return score
 
+
+# -------------------------
+# Create task
+# -------------------------
 @router.post("/")
 def create_task(task: TaskCreate, user_id=Depends(get_current_user)):
     due_date = (
@@ -38,52 +40,60 @@ def create_task(task: TaskCreate, user_id=Depends(get_current_user)):
         "description": task.description,
         "status": "todo",
         "priority": task.priority,
-        "due_date": due_date,  # ✅ Mongo-safe
+        "due_date": due_date,      # always datetime or None
         "created_at": datetime.utcnow()
     })
 
     return {"message": "Task created"}
 
+
+# -------------------------
+# Get tasks
+# -------------------------
 @router.get("/")
 def get_tasks(
     user_id=Depends(get_current_user),
-    status: str = None,
-    sort: str = "due"  # kept for compatibility
+    status: str | None = None,
+    sort: str = "due"
 ):
     query = {"user_id": user_id}
     if status:
         query["status"] = status
 
     tasks = list(tasks_collection.find(query))
-    now = datetime.utcnow().date()
+    now = datetime.utcnow()
 
-    for t in tasks:
-        t["_id"] = str(t["_id"])
+    for task in tasks:
+        task["_id"] = str(task["_id"])
+        due_date = task.get("due_date")
 
-        # Normalize due_date to date (IMPORTANT)
-        due_date = t.get("due_date")
-        if isinstance(due_date, datetime):
-            due_date = due_date.date()
+        # urgency
+        task["urgency"] = urgency_score(task)
 
-        # Compute urgency (uses normalized date internally)
-        t["urgency"] = urgency_score(t)
-
-        # Determine overdue status
-        if due_date and t["status"] != "done":
-            t["overdue"] = due_date < now
+        # overdue (datetime vs datetime)
+        if due_date and task["status"] != "done":
+            task["overdue"] = due_date < now
         else:
-            t["overdue"] = False
+            task["overdue"] = False
 
-    # Sort by urgency (highest first)
+    # Highest urgency first
     tasks.sort(key=lambda x: x["urgency"], reverse=True)
-
     return tasks
 
+
+# -------------------------
+# Update task
+# -------------------------
 @router.put("/{task_id}")
 def update_task(task_id: str, task: TaskUpdate, user_id=Depends(get_current_user)):
+    updates = {k: v for k, v in task.dict().items() if v is not None}
+
+    if "due_date" in updates and updates["due_date"]:
+        updates["due_date"] = datetime.combine(updates["due_date"], time.min)
+
     result = tasks_collection.update_one(
         {"_id": ObjectId(task_id), "user_id": user_id},
-        {"$set": {k: v for k, v in task.dict().items() if v is not None}}
+        {"$set": updates}
     )
 
     if result.matched_count == 0:
@@ -91,18 +101,33 @@ def update_task(task_id: str, task: TaskUpdate, user_id=Depends(get_current_user
 
     return {"message": "Task updated"}
 
+
+# -------------------------
+# Delete task
+# -------------------------
 @router.delete("/{task_id}")
 def delete_task(task_id: str, user_id=Depends(get_current_user)):
-    result = tasks_collection.delete_one({"_id": ObjectId(task_id), "user_id": user_id})
+    result = tasks_collection.delete_one({
+        "_id": ObjectId(task_id),
+        "user_id": user_id
+    })
 
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Task not found")
 
     return {"message": "Task deleted"}
 
+
+# -------------------------
+# Toggle task status
+# -------------------------
 @router.patch("/{task_id}/toggle")
 def toggle_status(task_id: str, user_id=Depends(get_current_user)):
-    task = tasks_collection.find_one({"_id": ObjectId(task_id), "user_id": user_id})
+    task = tasks_collection.find_one({
+        "_id": ObjectId(task_id),
+        "user_id": user_id
+    })
+
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -115,6 +140,10 @@ def toggle_status(task_id: str, user_id=Depends(get_current_user)):
 
     return {"status": new_status}
 
+
+# -------------------------
+# Suggest best task
+# -------------------------
 @router.get("/suggest")
 def suggest_task(user_id=Depends(get_current_user)):
     tasks = list(tasks_collection.find({
@@ -125,16 +154,13 @@ def suggest_task(user_id=Depends(get_current_user)):
     if not tasks:
         return {"suggestion": "Nothing to do. Go touch grass."}
 
-    def score(t):
-        s = t.get("priority", 1) * 10
-
-        due_date = t.get("due_date")
-        if isinstance(due_date, datetime):
-            due_date = due_date.date()
+    def score(task):
+        s = task.get("priority", 1) * 10
+        due_date = task.get("due_date")
 
         if due_date:
-            days = (due_date - datetime.utcnow().date()).days
-            s += max(0, 20 - days)
+            days_left = (due_date - datetime.utcnow()).days
+            s += max(0, 20 - days_left)
 
         return s
 
@@ -144,4 +170,3 @@ def suggest_task(user_id=Depends(get_current_user)):
         "suggestion": f"Work on: {best['title']}",
         "task_id": str(best["_id"])
     }
-

@@ -50,22 +50,24 @@ async function loadTasks(status = null, sort = "due") {
     renderTasks();
 }
 
-function getTimeLeft(dueDate) {
-    if (!dueDate) return "No deadline";
+function getTimeLeft(due){
+    if(!due) return "No deadline";
 
     const now = new Date();
-    const diff = new Date(dueDate) - now;
+    const end = new Date(due);
+    const diff = end - now;
 
-    if (diff <= 0) return "OVERDUE";
+    if(diff <= 0) return "OVERDUE";
 
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (days > 0) return `${days}d ${hours % 24}h`;
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    if(days > 0) return `${days}d ${hours % 24}h`;
+    if(hours > 0) return `${hours}h ${minutes % 60}m`;
     return `${minutes}m`;
 }
+
 
 function renderTasks() {
     taskList.innerHTML = "";
@@ -194,7 +196,7 @@ async function getSuggestion(){
     ai.innerText = data.suggestion;
 }
 
-function focus(){
+function focusTask(){
     if(allTasks.length == 0) return;
 
     const best = allTasks[0]; // highest urgency
@@ -241,7 +243,9 @@ function editTask(index){
 
     eTitle.value = t.title;
     eDesc.value = t.description || "";
-    eDue.value = t.due_date || "";
+    eDue.value = t.due_date
+    ? new Date(t.due_date).toISOString().slice(0,16)
+    : "";
     ePriority.value = t.priority;
 
     editBox.style.display = "block";
