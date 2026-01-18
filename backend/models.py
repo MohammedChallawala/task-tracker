@@ -22,3 +22,4 @@ class TaskUpdate(BaseModel):
     status: Optional[str]
     priority: Optional[int]
     due_date: Optional[datetime]
+    status: str

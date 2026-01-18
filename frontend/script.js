@@ -167,6 +167,7 @@ async function toggle(id){
         method:"PATCH",
         headers:{ "Authorization":"Bearer " + token }
     });
+    delete reminderState[id];
     loadTasks();
 }
 
@@ -209,31 +210,64 @@ function focusTask(){
     `;
 }
 
-let lastReminder = "";
+const REMINDER_POINTS = [
+    { label: "1 day", minutes: 1440 },
+    { label: "12 hours", minutes: 720 },
+    { label: "1 hour", minutes: 60 },
+    { label: "5 minutes", minutes: 5 }
+];
 
-setInterval(() => {
-    if(allTasks.length == 0) return;
+// GLOBAL reminder memory (must survive reloads of tasks)
+const reminderState = {};
 
-    const urgent = allTasks[0];
+function minutesLeft(due) {
+    if (!due) return null;
+    return Math.floor((new Date(due) - new Date()) / 60000);
+}
 
-    const time = getTimeLeft(urgent.due_date);
+function startReminderLoop() {
+    setInterval(() => {
+        allTasks.forEach(task => {
 
-    let message = "";
-    if(urgent.overdue) {
-        message = `You missed "${urgent.title}". Fix it.`;
-    }
-    else if(time.includes("m")) {
-        message = `"${urgent.title}" is due in ${time}`;
-    }
-    else if(urgent.priority >= 3) {
-        message = `High priority: ${urgent.title}`;
-    }
+            if (task.status === "done" || !task.due_date) return;
 
-    if(message && message !== lastReminder){
-        alert(message);
-        lastReminder = message;
-    }
-}, 60000);
+            if (!reminderState[task._id]) {
+                reminderState[task._id] = new Set();
+            }
+
+            const mins = minutesLeft(task.due_date);
+            if (mins === null) return;
+
+            // OVERDUE — ONCE ONLY
+            if (mins < 0) {
+                if (!reminderState[task._id].has("overdue")) {
+                    alert(`OVERDUE: "${task.title}"`);
+                    reminderState[task._id].add("overdue");
+                }
+                return;
+            }
+
+            // THRESHOLD REMINDERS
+            REMINDER_POINTS.forEach(r => {
+                if (
+                    mins <= r.minutes &&
+                    mins > r.minutes - 2 &&
+                    !reminderState[task._id].has(r.label)
+                ) {
+                    alert(`${r.label} left for "${task.title}"`);
+                    reminderState[task._id].add(r.label);
+                }
+            });
+
+        });
+    }, 60000);
+}
+
+// ENSURE THIS RUNS ONLY ONCE
+if (!window.__reminderIntervalStarted) {
+    window.__reminderIntervalStarted = true;
+    startReminderLoop();
+}
 
 let editingTask = null;
 
@@ -251,23 +285,33 @@ function editTask(index){
     editBox.style.display = "block";
 }
 
-async function saveEdit(){
+async function saveEdit() {
     const token = localStorage.getItem("token");
 
-    await fetch(API + "/tasks/" + editingTask._id, {
-        method:"PUT",
-        headers:{
-            "Content-Type":"application/json",
-            "Authorization":"Bearer " + token
+    const res = await fetch(API + "/tasks/" + editingTask._id, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
         },
         body: JSON.stringify({
             title: eTitle.value,
             description: eDesc.value,
             due_date: eDue.value,
-            priority: ePriority.value
+            priority: ePriority.value,
+            status: editingTask.status
         })
     });
 
+    const data = await res.json();
+if (!res.ok) {
+    const err = await res.json();
+    console.error("Failed to update task:", err);
+    alert("Could not update task");
+    return;
+    }
+    delete reminderState[editingTask._id];
     editBox.style.display = "none";
     loadTasks();
 }
+
