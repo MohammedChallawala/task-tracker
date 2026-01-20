@@ -20,6 +20,9 @@ async function register(){
     alert((await res.json()).message);
 }
 
+let isFocused = false;
+let focusedTaskId = null;
+
 // LOGIN
 async function login(){
     const email = loginEmail.value;
@@ -72,21 +75,31 @@ function getTimeLeft(due){
 function renderTasks() {
     taskList.innerHTML = "";
 
-    allTasks.forEach((t, index) => {
+    const tasksToRender = isFocused
+        ? allTasks.filter(t => t._id === focusedTaskId)
+        : allTasks;
+
+    tasksToRender.forEach((t, index) => {
         const li = document.createElement("li");
 
-        // Drag & drop setup
-        li.draggable = true;
-        li.dataset.index = index;
+        // Drag & drop setup (only when not focused)
+        if (!isFocused) {
+            li.draggable = true;
+            li.dataset.index = index;
+
+            li.addEventListener("dragstart", dragStart);
+            li.addEventListener("dragover", dragOver);
+            li.addEventListener("drop", drop);
+        }
 
         if (t.overdue) li.classList.add("overdue");
+        if (isFocused) li.classList.add("focused");
 
         const timeLeftText = getTimeLeft(t.due_date);
         const due = t.due_date
             ? new Date(t.due_date).toDateString()
             : "No deadline";
 
-        // Priority text
         let pText = "Low";
         if (t.priority == 2) pText = "Medium";
         if (t.priority == 3) pText = "High";
@@ -102,11 +115,6 @@ function renderTasks() {
             <button onclick="editTask(${index})">Edit</button>
             <button onclick="deleteTask('${t._id}')">Delete</button>
         `;
-
-        // Drag & drop handlers
-        li.addEventListener("dragstart", dragStart);
-        li.addEventListener("dragover", dragOver);
-        li.addEventListener("drop", drop);
 
         taskList.appendChild(li);
     });
@@ -197,17 +205,33 @@ async function getSuggestion(){
     ai.innerText = data.suggestion;
 }
 
-function focusTask(){
-    if(allTasks.length == 0) return;
+function focusTask() {
+    if (!isFocused) {
+        if (allTasks.length === 0) return;
 
-    const best = allTasks[0]; // highest urgency
-    focusBox.innerHTML = `
-        <h3>FOCUS</h3>
-        <b>${best.title}</b>
-        <p>${best.description}</p>
-        <p>${getTimeLeft(best.due_date)}</p>
-        <button onclick="toggle('${best._id}')">Mark Done</button>
-    `;
+        const best = allTasks[0]; // highest urgency
+        focusedTaskId = best._id;
+        isFocused = true;
+
+        focusBox.innerHTML = `
+            <h3>FOCUS</h3>
+            <b>${best.title}</b>
+            <p>${best.description}</p>
+            <p>${getTimeLeft(best.due_date)}</p>
+            <button onclick="toggle('${best._id}')">Mark Done</button>
+        `;
+
+        document.getElementById("focusBtn").innerText = "Unfocus";
+    } else {
+        // UNFOCUS
+        isFocused = false;
+        focusedTaskId = null;
+
+        focusBox.innerHTML = "";
+        document.getElementById("focusBtn").innerText = "Focus";
+    }
+
+    renderTasks();
 }
 
 const REMINDER_POINTS = [

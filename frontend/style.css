@@ -32,3 +32,12 @@ li {
 .overdue {
   border-left: 5px solid red;
 }
+
+.focused {
+  border: 2px solid #4CAF50;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.6);
+}
+
+body.focus-mode li {
+  opacity: 0.3;
+}
