@@ -1,5 +1,16 @@
 const API = "http://127.0.0.1:8000";
 
+document.addEventListener("DOMContentLoaded", () => {
+  const loginForm = document.getElementById("loginForm");
+
+  if (loginForm) {
+    loginForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      login();
+    });
+  }
+});
+
 // Save token
 function saveToken(token){
     localStorage.setItem("token", token);
