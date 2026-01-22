@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from database import tasks_collection
+from database import tasks_collection, deleted_tasks_collection
 from models import TaskCreate, TaskUpdate
 from utils.deps import get_current_user
 from bson import ObjectId
@@ -107,15 +107,41 @@ def update_task(task_id: str, task: TaskUpdate, user_id=Depends(get_current_user
 # -------------------------
 @router.delete("/{task_id}")
 def delete_task(task_id: str, user_id=Depends(get_current_user)):
+    # Find task with ownership check (preserves original security logic)
+    task = tasks_collection.find_one({
+        "_id": ObjectId(task_id),
+        "user_id": user_id
+    })
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Add deletion metadata
+    task["deleted_at"] = datetime.utcnow()
+
+    # Archive task
+    deleted_tasks_collection.insert_one(task)
+
+    # Delete from main collection (same filter as original logic)
     result = tasks_collection.delete_one({
         "_id": ObjectId(task_id),
         "user_id": user_id
     })
 
+    # Safety check (should rarely trigger, but preserves original behavior)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    return {"message": "Task deleted"}
+    return {"message": "Task deleted and archived"}
+
+@router.get("/deleted")
+def get_deleted_tasks(user_id=Depends(get_current_user)):
+    deleted = list(deleted_tasks_collection.find({"user_id": user_id}).sort("deleted_at", -1))
+    for d in deleted:
+        d["_id"] = str(d["_id"])
+        if "deleted_at" in d:
+            d["deleted_at"] = d["deleted_at"].isoformat()
+    return deleted
 
 
 # -------------------------
@@ -170,3 +196,4 @@ def suggest_task(user_id=Depends(get_current_user)):
         "suggestion": f"Work on: {best['title']}",
         "task_id": str(best["_id"])
     }
+

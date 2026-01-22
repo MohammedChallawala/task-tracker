@@ -12,6 +12,8 @@ db = client["tasktracker"]
 
 users_collection = db["users"]
 tasks_collection = db["tasks"]
+deleted_tasks_collection = db["deleted_tasks"]
+
 
 def ping_db():
     try:

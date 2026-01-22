@@ -17,7 +17,11 @@
     <option value="3">High</option>
   </select>
   <button onclick="createTask()">Add</button>
-
+  <button id="showDeletedBtn" onclick="loadDeletedTasks()">Show Deleted Tasks</button>
+  <div id="deletedTasksContainer" style="display:none;">
+    <h3>Deleted Tasks</h3>
+    <ul id="deletedTaskList"></ul>
+  </div>
   <br><br>
   <button onclick="loadTasks()">All</button>
   <button onclick="loadTasks('todo')">Todo</button>

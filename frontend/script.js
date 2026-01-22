@@ -82,6 +82,32 @@ function getTimeLeft(due){
     return `${minutes}m`;
 }
 
+async function loadDeletedTasks(){
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(API + "/tasks/deleted", {
+        headers: { "Authorization": "Bearer " + token }
+    });
+
+    const deletedTasks = await res.json();
+
+    const container = document.getElementById("deletedTasksContainer");
+    const list = document.getElementById("deletedTaskList");
+    list.innerHTML = "";
+
+    deletedTasks.forEach(t => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+            <b>${t.title}</b>
+            <br>Deleted at: ${new Date(t.deleted_at).toLocaleString()}
+            <br>Original due: ${t.due_date ? new Date(t.due_date).toLocaleString() : "None"}
+            <br>Priority: ${t.priority}
+        `;
+        list.appendChild(li);
+    });
+
+    container.style.display = "block";
+}
 
 function renderTasks() {
     taskList.innerHTML = "";
