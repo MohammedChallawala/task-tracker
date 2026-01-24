@@ -197,3 +197,24 @@ def suggest_task(user_id=Depends(get_current_user)):
         "task_id": str(best["_id"])
     }
 
+@router.post("/restore/{task_id}")
+def restore_task(task_id: str, user_id=Depends(get_current_user)):
+    task = deleted_tasks_collection.find_one({
+        "_id": ObjectId(task_id),
+        "user_id": user_id
+    })
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Deleted task not found")
+
+    # Remove deleted metadata
+    task.pop("_id")
+    task.pop("deleted_at", None)
+
+    # Reinsert into active tasks
+    tasks_collection.insert_one(task)
+
+    # Remove from deleted
+    deleted_tasks_collection.delete_one({"_id": ObjectId(task_id)})
+
+    return {"message": "Task restored"}

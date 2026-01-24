@@ -82,7 +82,7 @@ function getTimeLeft(due){
     return `${minutes}m`;
 }
 
-async function loadDeletedTasks(){
+async function loadDeletedTasks() {
     const token = localStorage.getItem("token");
 
     const res = await fetch(API + "/tasks/deleted", {
@@ -102,6 +102,8 @@ async function loadDeletedTasks(){
             <br>Deleted at: ${new Date(t.deleted_at).toLocaleString()}
             <br>Original due: ${t.due_date ? new Date(t.due_date).toLocaleString() : "None"}
             <br>Priority: ${t.priority}
+            <br>
+            <button onclick="restoreTask('${t._id}')">Restore</button>
         `;
         list.appendChild(li);
     });
@@ -376,3 +378,31 @@ if (!res.ok) {
     loadTasks();
 }
 
+let deletedVisible = false;
+
+function toggleDeleted(){
+    const container = document.getElementById("deletedTasksContainer");
+
+    if(deletedVisible){
+        container.style.display = "none";
+        document.getElementById("showDeletedBtn").innerText = "Show Deleted";
+        deletedVisible = false;
+    } else {
+        loadDeletedTasks();
+        container.style.display = "block";
+        document.getElementById("showDeletedBtn").innerText = "Hide Deleted";
+        deletedVisible = true;
+    }
+}
+
+async function restoreTask(id){
+    const token = localStorage.getItem("token");
+
+    await fetch(API + "/tasks/restore/" + id, {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + token }
+    });
+
+    loadDeletedTasks();   // refresh deleted list
+    loadTasks();          // refresh active list
+}
