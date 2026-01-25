@@ -19,6 +19,7 @@
   <button onclick="createTask()">Add</button>
   <button id="showDeletedBtn" onclick="toggleDeleted()">Show Deleted</button>
   <div id="deletedTasksContainer" style="display:none;">
+    <input id="deletedSearch" placeholder="Search deleted..." oninput="loadDeletedTasks()">
     <h3>Deleted Tasks</h3>
     <ul id="deletedTaskList"></ul>
   </div>
@@ -41,6 +42,10 @@
     </select>
     <button onclick="saveEdit()">Save</button>
   </div>
+    <div id="undoToast" style="display:none; position:fixed; bottom:20px; right:20px; background:#333; padding:15px; border-radius:8px;">
+      Task deleted
+      <button onclick="undoDelete()">Undo</button>
+    </div>
 
   <ul id="taskList"></ul>
   <button onclick="getSuggestion()">What should I do now?</button>

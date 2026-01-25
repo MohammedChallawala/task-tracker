@@ -3,7 +3,7 @@ from database import tasks_collection, deleted_tasks_collection
 from models import TaskCreate, TaskUpdate
 from utils.deps import get_current_user
 from bson import ObjectId
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
@@ -218,3 +218,24 @@ def restore_task(task_id: str, user_id=Depends(get_current_user)):
     deleted_tasks_collection.delete_one({"_id": ObjectId(task_id)})
 
     return {"message": "Task restored"}
+
+@router.delete("/permanent/{task_id}")
+def permanent_delete(task_id: str, user_id=Depends(get_current_user)):
+    result = deleted_tasks_collection.delete_one({
+        "_id": ObjectId(task_id),
+        "user_id": user_id
+    })
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return {"message": "Task permanently deleted"}
+
+@router.delete("/cleanup/{days}")
+def cleanup_deleted(days: int, user_id=Depends(get_current_user)):
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    result = deleted_tasks_collection.delete_many({
+        "user_id": user_id,
+        "deleted_at": {"$lt": cutoff}
+    })
+    return {"deleted": result.deleted_count}

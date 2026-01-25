@@ -1,4 +1,6 @@
 const API = "http://127.0.0.1:8000";
+let lastDeletedTaskId = null;
+let undoTimer = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("loginForm");
@@ -92,10 +94,13 @@ async function loadDeletedTasks() {
     const deletedTasks = await res.json();
 
     const container = document.getElementById("deletedTasksContainer");
+    const query = document.getElementById("deletedSearch").value.toLowerCase();
     const list = document.getElementById("deletedTaskList");
     list.innerHTML = "";
 
-    deletedTasks.forEach(t => {
+    deletedTasks
+    .filter(t => t.title.toLowerCase().includes(query))
+    .forEach(t => {
         const li = document.createElement("li");
         li.innerHTML = `
             <b>${t.title}</b>
@@ -104,6 +109,7 @@ async function loadDeletedTasks() {
             <br>Priority: ${t.priority}
             <br>
             <button onclick="restoreTask('${t._id}')">Restore</button>
+            <button onclick="permanentDelete('${t._id}')">Delete Permanently</button>
         `;
         list.appendChild(li);
     });
@@ -219,14 +225,15 @@ async function toggle(id){
 }
 
 // DELETE
-async function deleteTask(id){
+async function deleteTask(id) {
     const token = localStorage.getItem("token");
 
     await fetch(API + "/tasks/" + id, {
-        method:"DELETE",
-        headers:{ "Authorization":"Bearer " + token }
+        method: "DELETE",
+        headers: { "Authorization": "Bearer " + token }
     });
 
+    showUndoToast(id); // new functionality
     loadTasks();
 }
 
@@ -406,3 +413,40 @@ async function restoreTask(id){
     loadDeletedTasks();   // refresh deleted list
     loadTasks();          // refresh active list
 }
+
+
+function showUndoToast(taskId){
+    lastDeletedTaskId = taskId;
+    const toast = document.getElementById("undoToast");
+    toast.style.display = "block";
+
+    undoTimer = setTimeout(() => {
+        toast.style.display = "none";
+        lastDeletedTaskId = null;
+    }, 5000);
+}
+
+async function undoDelete(){
+    if(!lastDeletedTaskId) return;
+
+    await restoreTask(lastDeletedTaskId);
+    document.getElementById("undoToast").style.display = "none";
+    clearTimeout(undoTimer);
+}
+
+async function permanentDelete(id){
+    const token = localStorage.getItem("token");
+
+    await fetch(API + "/tasks/permanent/" + id, {
+        method:"DELETE",
+        headers:{ "Authorization":"Bearer " + token }
+    });
+
+    loadDeletedTasks();
+}
+
+document.addEventListener("keydown", function(e){
+    if(e.ctrlKey && e.key === "z"){
+        undoDelete();
+    }
+});
